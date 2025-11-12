@@ -2,7 +2,7 @@ import express from 'express';
 import type { Express, Request, Response, NextFunction } from 'express';
 
 // Импорт маршрутов для товаров
-import productRoutes from './routes/productRoutes';
+import productRoutes from './routes/productRoutes.ts';
 
 const app: Express = express();
 
