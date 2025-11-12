@@ -1,0 +1,227 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS ============
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  firstName String?
+  lastName  String?
+  phone     String?
+  avatar    String?
+  role      String     @default("user") // admin, user
+  
+  // Relations
+  orders    Order[]
+  reviews   Review[]
+  favorites Favorite[]
+  cart      CartItem[]
+  addresses Address[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============ CATEGORIES ============
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  image       String?
+  parentId    String?    // Для вложенных категорий
+  
+  // Relations
+  parent      Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryChildren")
+  products    Product[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ PRODUCTS ============
+model Product {
+  id              String     @id @default(cuid())
+  name            String
+  slug            String     @unique
+  description     String?
+  price           Float      // Текущая цена
+  originalPrice   Float?     // Старая цена (для скидок)
+  discount        Int?       // Процент скидки
+  stock           Int        @default(0)
+  brand           String?
+  rating          Float      @default(0)
+  
+  // Relations
+  categoryId      String
+  category        Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  attributes      ProductAttribute[]
+  images          ProductImage[]
+  reviews         Review[]
+  favorites       Favorite[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============ PRODUCT IMAGES ============
+model ProductImage {
+  id        String   @id @default(cuid())
+  url       String
+  alt       String?
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+}
+
+// ============ PRODUCT ATTRIBUTES ============
+model ProductAttribute {
+  id        String   @id @default(cuid())
+  name      String   // Размер, Материал, Цвет и т.д.
+  value     String   // 120х60см, Дерево, Красный и т.д.
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+}
+
+// ============ REVIEWS ============
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 звёзд
+  text      String?
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============ FAVORITES ============
+model Favorite {
+  id        String   @id @default(cuid())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, productId]) // Один товар в избранном только один раз
+}
+
+// ============ CART ============
+model CartItem {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(1)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, productId]) // Один товар в корзине только один раз
+}
+
+// ============ ORDERS ============
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique // Уникальный номер заказа (например, ORD-2025-001)
+  status            String      @default("pending") // pending, processing, shipped, delivered, cancelled
+  totalPrice        Float
+  
+  shippingAddress   String
+  shippingCity      String
+  shippingPostalCode String?
+  
+  paymentMethod     String      // card, cash, bank_transfer
+  paymentStatus     String      @default("pending") // pending, completed, failed
+  
+  deliveryDate      DateTime?
+  notes             String?
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  items             OrderItem[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============ ORDER ITEMS ============
+model OrderItem {
+  id        String   @id @default(cuid())
+  quantity  Int
+  price     Float    // Цена товара в момент заказа
+  
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+}
+
+// ============ COUPONS ============
+model Coupon {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  discountPercent Int?     // Процент скидки (если указан)
+  discountAmount  Float?   // Фиксированная сумма (если указана)
+  maxUses         Int      @default(-1) // -1 = без ограничений
+  usedCount       Int      @default(0)
+  
+  validFrom       DateTime
+  validUntil      DateTime
+  
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============ ADDRESSES ============
+model Address {
+  id        String   @id @default(cuid())
+  fullName  String
+  phone     String
+  street    String
+  city      String
+  postalCode String?
+  isDefault Boolean  @default(false)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
